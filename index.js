@@ -4,7 +4,9 @@ const cheerio = require('cheerio')
 const express = require('express')
 const app = express()
 const cors = require('cors')
-var SocksProxyAgent = require('socks-proxy-agent');
+const SocksProxyAgent = require('socks-proxy-agent');
+const fs = require('fs');
+
 app.use(cors())
 
 
@@ -19,21 +21,41 @@ app.get('/', function (req, res) {
 
 app.get('/prices', async (req, res) => {
 
-    console.log("*AC START date: ", startDate.toDateString())
-    console.log("*AC END date: ", endDate.toDateString())
+    let daysPerRequestLimit = req.query.limit
+    let year = req.query.year
+    let yearScrapeFileName = `scrape${year}.json`
 
-    var now = endDate
+    let rawdata = fs.readFileSync(yearScrapeFileName);
+    let yearScrape = JSON.parse(rawdata);
+
+    var yearStart = new Date(`01/01/${year}`);
+    var yearEnd = new Date(`12/31/${year}`);
+    var yearDaysCount = (yearEnd.getTime()-yearStart.getTime()) / (1000 * 3600 * 24) 
+
+    console.log("*AC limit: ", daysPerRequestLimit)
+    console.log("*AC START date: ", yearStart.toDateString())
+    console.log("*AC END date: ", yearEnd.toDateString())
+    console.log("*AC days count: ", yearDaysCount)
+
+
     var daysOfYear = [];
-    const prices = [];
-    const errors = [];
-    
-    for (var d = startDate; d <= now; d.setDate(d.getDate() + 1)) {        
+    for (var d = yearStart; d <= yearEnd; d.setDate(d.getDate() + 1)) {        
         daysOfYear.push(d.toString());
     }
 
-    console.log("*AC days = ", daysOfYear)
+    const missingDays = daysOfYear.filter(e => {
+        const d = new Date(e)
+        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth()+1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')        
 
-    await Promise.all(daysOfYear.map(dateString => {
+        return yearScrape.find(element => element["Date"] === jsonDate) == null
+    })
+    console.log("*AC missingDays: ", missingDays.length)
+    
+    const daysToFetch = missingDays.slice(0, daysPerRequestLimit);
+
+    const prices = [];
+    const errors = [];
+    await Promise.all(daysToFetch.map(dateString => {
 
         const d = new Date(dateString)
 
@@ -67,32 +89,33 @@ app.get('/prices', async (req, res) => {
                 Date: jsonDate,
                 ...articles
             })  
-        }).catch(error => {
-            if (error.response) {
-                // Request made and server responded
-                console.log(error.response.data);
-                console.log(error.response.status);
-                console.log(error.response.headers);
-              } else if (error.request) {
-                // The request was made but no response was received
-                console.log(error.request);
-              } else {
-                // Something happened in setting up the request that triggered an Error
-                console.log('Error', error.message);
-              }
 
+        }).catch(err => {
             errors.push(jsonDate)
             // console.log(`*AC ERROR on ${jsonDate}: `, err.message)
         })
     }
     ));
 
-    prices.sort(function(a,b){
+    yearScrape.push(...prices)
+
+    yearScrape.sort(function(a,b){
         return new Date(a["Date"]) - new Date(b["Date"])
     });
 
+    let data = JSON.stringify(yearScrape);
+    fs.writeFileSync(yearScrapeFileName, data);
+
+    res.json({
+        result: {
+            success: prices.length,
+            failure: errors.length
+        },
+        completion: `${yearScrape.length}/${yearDaysCount}`,
+        data: yearScrape
+    })
+
     console.log(`*AC DONE with ${errors.length} errors`)
-    res.json(prices)
 })
 
 app.get('/results', (req, res) => {
