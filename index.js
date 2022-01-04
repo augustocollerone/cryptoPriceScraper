@@ -117,67 +117,109 @@ app.get('/prices', async (req, res) => {
     console.log(`*AC DONE with ${errors.length} errors`)
 })
 
-app.get('/results', (req, res) => {
-    axios(url)
-        .then(response => {
-            const html = response.data
-            const $ = cheerio.load(html)
-            const articles = []
+app.get('/api', async (req, res) => {
 
-            $('.fc-item__title', html).each(function () { //<-- cannot be a function expression
-                const title = $(this).text()
-                const url = $(this).find('a').attr('href')
-                articles.push({
-                    title,
-                    url
-                })
-            })
-            res.json(articles)
-        }).catch(err => console.log(err))
-})
+    let daysPerRequestLimit = req.query.limit
+    let year = req.query.year
+    let yearScrapeFileName = `scrape${year}.json`
 
-app.get('/api', (req, res) => {
-    const url = "https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/historical?convert=USD,USD,BTC&date=2020-02-16&limit=250"
-    axios({
-        url: url,
-        headers: {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "en-US,en;q=0.9",
-            "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"macOS\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
-            "Referer": "https://coinmarketcap.com/",
-            "Referrer-Policy": "strict-origin-when-cross-origin"
-        },
-        httpsAgent: agent,
-        timeout: 1000
+    let rawdata = fs.readFileSync(yearScrapeFileName);
+    let yearScrape = JSON.parse(rawdata);
+
+    var yearStart = new Date(`01/01/${year}`);
+    var yearEnd = new Date(`12/31/${year}`);
+    var yearDaysCount = (yearEnd.getTime() - yearStart.getTime()) / (1000 * 3600 * 24)
+
+    console.log("*AC limit: ", daysPerRequestLimit)
+    console.log("*AC START date: ", yearStart.toDateString())
+    console.log("*AC END date: ", yearEnd.toDateString())
+    console.log("*AC days count: ", yearDaysCount)
+
+
+    var daysOfYear = [];
+    for (var d = yearStart; d <= yearEnd; d.setDate(d.getDate() + 1)) {
+        daysOfYear.push(d.toString());
+    }
+
+    const missingDays = daysOfYear.filter(e => {
+        const d = new Date(e)
+        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth() + 1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')
+
+        return yearScrape.find(element => element["Date"] === jsonDate) == null
     })
-        .then(response => {
-            console.log("*AC Response: ", response.data)
-            res.json(response.data.data)
-            
-        }).catch(err => console.log(err))
+    console.log("*AC missingDays: ", missingDays.length)
 
-    // fetch("https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/historical?convert=USD,USD,BTC&date=2020-02-16&limit=200&start=401", {
-    //     "headers": {
-    //         "accept": "application/json, text/plain, */*",
-    //         "accept-language": "en-US,en;q=0.9",
-    //         "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"",
-    //         "sec-ch-ua-mobile": "?0",
-    //         "sec-ch-ua-platform": "\"macOS\"",
-    //         "sec-fetch-dest": "empty",
-    //         "sec-fetch-mode": "cors",
-    //         "sec-fetch-site": "same-site",
-    //         "Referer": "https://coinmarketcap.com/",
-    //         "Referrer-Policy": "strict-origin-when-cross-origin"
-    //     },
-    //     "body": null,
-    //     "method": "GET"
-    // });
+    const daysToFetch = missingDays.slice(0, daysPerRequestLimit);
+
+    const prices = [];
+    const errors = [];
+    await Promise.all(daysToFetch.map(dateString => {
+
+        const d = new Date(dateString)
+
+        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth() + 1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')
+        const url = `https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/historical?convert=USD,USD,BTC&date=${jsonDate}&limit=300`
+        console.log("*AC API: ", url)
+
+        return axios({
+            url: url,
+            headers: {
+                "accept": "application/json, text/plain, */*",
+                "accept-language": "en-US,en;q=0.9",
+                "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"",
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": "\"macOS\"",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "same-site",
+                "Referer": "https://coinmarketcap.com/",
+                "Referrer-Policy": "strict-origin-when-cross-origin"
+            },
+            httpsAgent: agent,
+            timeout: 100000
+        })
+            .then(response => {
+                const data = response.data.data
+
+                const articles = {}
+
+                data.forEach(element => {
+                    const symbol = element.symbol
+                    const price = element.quote.USD.price
+                    articles[symbol] = price
+                });
+
+                prices.push({
+                    Date: jsonDate,
+                    ...articles
+                })
+
+            }).catch(err => {
+                errors.push(jsonDate)
+                console.log(`*AC ERROR on ${jsonDate}: `, err.message)
+            })
+    } 
+    ));
+
+    yearScrape.push(...prices)
+
+    yearScrape.sort(function (a, b) {
+        return new Date(a["Date"]) - new Date(b["Date"])
+    });
+
+    let data = JSON.stringify(yearScrape);
+    fs.writeFileSync(yearScrapeFileName, data);
+
+    res.json({
+        result: {
+            success: prices.length,
+            failure: errors.length
+        },
+        completion: `${yearScrape.length}/${yearDaysCount}`,
+        data: yearScrape
+    })
+
+    console.log(`*AC DONE with ${errors.length} errors`)
 })
-
 
 app.listen(PORT, () => console.log(`server running on PORT ${PORT}`))
