@@ -9,6 +9,7 @@ const fs = require('fs');
 
 app.use(cors())
 
+// FIRST NEED TO  RUN -> docker run -it -p 9050:9050 -d dperson/torproxy
 
 const agent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
 
