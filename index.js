@@ -4,10 +4,14 @@ const cheerio = require('cheerio')
 const express = require('express')
 const app = express()
 const cors = require('cors')
+var SocksProxyAgent = require('socks-proxy-agent');
 app.use(cors())
 
-var startDate = new Date("01/01/2021");
-var endDate = new Date("01/03/2021"); // MM DD YYYY
+
+const agent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
+
+var startDate = new Date("12/01/2021");
+var endDate = new Date("12/31/2021"); // MM DD YYYY
 
 app.get('/', function (req, res) {
     res.json('This is my webscraper')
@@ -21,6 +25,7 @@ app.get('/prices', async (req, res) => {
     var now = endDate
     var daysOfYear = [];
     const prices = [];
+    const errors = [];
     
     for (var d = startDate; d <= now; d.setDate(d.getDate() + 1)) {        
         daysOfYear.push(d.toString());
@@ -36,7 +41,11 @@ app.get('/prices', async (req, res) => {
         var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth()+1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')        
         const url = `https://coinmarketcap.com/es/historical/${urlDate}/`
 
-        return axios(url)
+        return axios({
+            url: url,
+            httpsAgent: agent,
+            timeout: 100000
+        })
         .then(response => {
             const html = response.data
             const $ = cheerio.load(html)
@@ -58,8 +67,23 @@ app.get('/prices', async (req, res) => {
                 Date: jsonDate,
                 ...articles
             })  
+        }).catch(error => {
+            if (error.response) {
+                // Request made and server responded
+                console.log(error.response.data);
+                console.log(error.response.status);
+                console.log(error.response.headers);
+              } else if (error.request) {
+                // The request was made but no response was received
+                console.log(error.request);
+              } else {
+                // Something happened in setting up the request that triggered an Error
+                console.log('Error', error.message);
+              }
 
-        }).catch(err => console.log(err))
+            errors.push(jsonDate)
+            // console.log(`*AC ERROR on ${jsonDate}: `, err.message)
+        })
     }
     ));
 
@@ -67,6 +91,7 @@ app.get('/prices', async (req, res) => {
         return new Date(a["Date"]) - new Date(b["Date"])
     });
 
+    console.log(`*AC DONE with ${errors.length} errors`)
     res.json(prices)
 })
 
