@@ -6,15 +6,13 @@ const app = express()
 const cors = require('cors')
 const SocksProxyAgent = require('socks-proxy-agent');
 const fs = require('fs');
+const { addAbortSignal } = require('stream')
 
 app.use(cors())
 
 // FIRST NEED TO  RUN -> docker run -it -p 9050:9050 -d dperson/torproxy
 
 const agent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
-
-var startDate = new Date("12/01/2021");
-var endDate = new Date("12/31/2021"); // MM DD YYYY
 
 app.get('/', function (req, res) {
     res.json('This is my webscraper')
@@ -31,7 +29,7 @@ app.get('/prices', async (req, res) => {
 
     var yearStart = new Date(`01/01/${year}`);
     var yearEnd = new Date(`12/31/${year}`);
-    var yearDaysCount = (yearEnd.getTime()-yearStart.getTime()) / (1000 * 3600 * 24) 
+    var yearDaysCount = (yearEnd.getTime() - yearStart.getTime()) / (1000 * 3600 * 24)
 
     console.log("*AC limit: ", daysPerRequestLimit)
     console.log("*AC START date: ", yearStart.toDateString())
@@ -40,18 +38,18 @@ app.get('/prices', async (req, res) => {
 
 
     var daysOfYear = [];
-    for (var d = yearStart; d <= yearEnd; d.setDate(d.getDate() + 1)) {        
+    for (var d = yearStart; d <= yearEnd; d.setDate(d.getDate() + 1)) {
         daysOfYear.push(d.toString());
     }
 
     const missingDays = daysOfYear.filter(e => {
         const d = new Date(e)
-        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth()+1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')        
+        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth() + 1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')
 
         return yearScrape.find(element => element["Date"] === jsonDate) == null
     })
     console.log("*AC missingDays: ", missingDays.length)
-    
+
     const daysToFetch = missingDays.slice(0, daysPerRequestLimit);
 
     const prices = [];
@@ -60,8 +58,8 @@ app.get('/prices', async (req, res) => {
 
         const d = new Date(dateString)
 
-        var urlDate = "" + d.getFullYear() + (d.getMonth()+1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0')        
-        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth()+1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')        
+        var urlDate = "" + d.getFullYear() + (d.getMonth() + 1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0')
+        var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth() + 1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')
         const url = `https://coinmarketcap.com/es/historical/${urlDate}/`
 
         return axios({
@@ -69,38 +67,38 @@ app.get('/prices', async (req, res) => {
             httpsAgent: agent,
             timeout: 100000
         })
-        .then(response => {
-            const html = response.data
-            const $ = cheerio.load(html)
+            .then(response => {
+                const html = response.data
+                const $ = cheerio.load(html)
 
-            const articles = {}
+                const articles = {}
 
-            $('.cmc-table-row', html).each(function () { //<-- cannot be a function expression
+                $('.cmc-table-row', html).each(function () { //<-- cannot be a function expression
 
-                const title = $($($(this).find("td")[1])).find("a").attr('title')
-                const symbol = $($(this).find("td")[2]).text()
-                const price = $($(this).find("td")[4]).text().replace(",", "").replace("$", "")
+                    const title = $($($(this).find("td")[1])).find("a").attr('title')
+                    const symbol = $($(this).find("td")[2]).text()
+                    const price = $($(this).find("td")[4]).text().replace(",", "").replace("$", "")
 
-                if (title) {
-                    articles[symbol] = price
-                }
+                    if (title) {
+                        articles[symbol] = price
+                    }
+                })
+
+                prices.push({
+                    Date: jsonDate,
+                    ...articles
+                })
+
+            }).catch(err => {
+                errors.push(jsonDate)
+                // console.log(`*AC ERROR on ${jsonDate}: `, err.message)
             })
-
-            prices.push({
-                Date: jsonDate,
-                ...articles
-            })  
-
-        }).catch(err => {
-            errors.push(jsonDate)
-            // console.log(`*AC ERROR on ${jsonDate}: `, err.message)
-        })
     }
     ));
 
     yearScrape.push(...prices)
 
-    yearScrape.sort(function(a,b){
+    yearScrape.sort(function (a, b) {
         return new Date(a["Date"]) - new Date(b["Date"])
     });
 
