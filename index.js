@@ -7,7 +7,7 @@ const cors = require('cors')
 app.use(cors())
 
 var startDate = new Date("01/01/2021");
-var endDate = new Date("01/31/2021"); // MM DD YYYY
+var endDate = new Date("01/03/2021"); // MM DD YYYY
 
 app.get('/', function (req, res) {
     res.json('This is my webscraper')
@@ -35,8 +35,6 @@ app.get('/prices', async (req, res) => {
         var urlDate = "" + d.getFullYear() + (d.getMonth()+1).toString().padStart(2, '0') + d.getDate().toString().padStart(2, '0')        
         var jsonDate = "" + d.getFullYear() + "-" + (d.getMonth()+1).toString().padStart(2, '0') + "-" + d.getDate().toString().padStart(2, '0')        
         const url = `https://coinmarketcap.com/es/historical/${urlDate}/`
-
-        console.log("*AC url = ", jsonDate)
 
         return axios(url)
         .then(response => {
