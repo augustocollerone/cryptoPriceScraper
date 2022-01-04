@@ -136,5 +136,48 @@ app.get('/results', (req, res) => {
         }).catch(err => console.log(err))
 })
 
+app.get('/api', (req, res) => {
+    const url = "https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/historical?convert=USD,USD,BTC&date=2020-02-16&limit=250"
+    axios({
+        url: url,
+        headers: {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "en-US,en;q=0.9",
+            "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "Referer": "https://coinmarketcap.com/",
+            "Referrer-Policy": "strict-origin-when-cross-origin"
+        },
+        httpsAgent: agent,
+        timeout: 1000
+    })
+        .then(response => {
+            console.log("*AC Response: ", response.data)
+            res.json(response.data.data)
+            
+        }).catch(err => console.log(err))
+
+    // fetch("https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/historical?convert=USD,USD,BTC&date=2020-02-16&limit=200&start=401", {
+    //     "headers": {
+    //         "accept": "application/json, text/plain, */*",
+    //         "accept-language": "en-US,en;q=0.9",
+    //         "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"",
+    //         "sec-ch-ua-mobile": "?0",
+    //         "sec-ch-ua-platform": "\"macOS\"",
+    //         "sec-fetch-dest": "empty",
+    //         "sec-fetch-mode": "cors",
+    //         "sec-fetch-site": "same-site",
+    //         "Referer": "https://coinmarketcap.com/",
+    //         "Referrer-Policy": "strict-origin-when-cross-origin"
+    //     },
+    //     "body": null,
+    //     "method": "GET"
+    // });
+})
+
 
 app.listen(PORT, () => console.log(`server running on PORT ${PORT}`))
