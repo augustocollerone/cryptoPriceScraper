@@ -119,6 +119,22 @@ app.get('/prices', async (req, res) => {
 
 app.get('/api', async (req, res) => {
 
+    const wantedCoins = [
+        "USDC",
+        "BTC",
+        "PAXG",
+        "ETH",
+        "USDT",
+        "CHZ",
+        "SHIB",
+        "DOGE",
+        "USD",
+        "LTC",
+        "ADA",
+        "NEO",
+        "XRP"
+    ]
+
     let daysPerRequestLimit = req.query.limit
     let year = req.query.year
     let yearScrapeFileName = `scrape${year}.json`
@@ -176,7 +192,7 @@ app.get('/api', async (req, res) => {
                 "Referrer-Policy": "strict-origin-when-cross-origin"
             },
             httpsAgent: agent,
-            timeout: 100000
+            timeout: 200000
         })
             .then(response => {
                 const data = response.data.data
@@ -186,7 +202,10 @@ app.get('/api', async (req, res) => {
                 data.forEach(element => {
                     const symbol = element.symbol
                     const price = element.quote.USD.price
-                    articles[symbol] = price
+
+                    if (wantedCoins.includes(symbol)) {
+                        articles[symbol] = price
+                    }
                 });
 
                 prices.push({
@@ -198,7 +217,7 @@ app.get('/api', async (req, res) => {
                 errors.push(jsonDate)
                 console.log(`*AC ERROR on ${jsonDate}: `, err.message)
             })
-    } 
+    }
     ));
 
     yearScrape.push(...prices)
