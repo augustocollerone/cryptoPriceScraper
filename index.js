@@ -10,6 +10,24 @@ const { addAbortSignal } = require('stream')
 
 app.use(cors())
 
+let filterSymbols = [
+    "BTC", 
+    "ETH", 
+    "XRP", 
+    "LTC", 
+    "DOGE", 
+    "USDT", 
+    "NEO", 
+    "ADA", 
+    "USDC", 
+    "CHZ", 
+    "PAXG", 
+    "SHIB", 
+    "DOT", 
+    "SOL", 
+    "ADA"
+]
+
 // FIRST NEED TO  RUN -> docker run -it -p 9050:9050 -d dperson/torproxy
 
 const agent = new SocksProxyAgent('socks5h://127.0.0.1:9050');
@@ -186,8 +204,30 @@ app.get('/api', async (req, res) => {
                 data.forEach(element => {
                     const symbol = element.symbol
                     const price = element.quote.USD.price
-                    articles[symbol] = price
+
+                    if (filterSymbols.includes(symbol)) {
+                        articles[symbol] = price
+                    }
                 });
+
+                // // Create items array
+                // var items = Object.keys(articles).map(function (key) {
+                //     return [key, articles[key]];
+                // });
+
+                // // Sort the array based on the second element
+                // items.sort(function (first, second) {
+                //     return filterSymbols.indexOf(a) - filterSymbols.indexOf(b);
+                // });
+
+
+                // Sort to match filter
+                // articles = sort_object(articles)
+
+                
+                // articles.sort(function (a, b) {
+                //     return filterSymbols.indexOf(a) - filterSymbols.indexOf(b);
+                // });
 
                 prices.push({
                     Date: jsonDate,
@@ -198,7 +238,7 @@ app.get('/api', async (req, res) => {
                 errors.push(jsonDate)
                 console.log(`*AC ERROR on ${jsonDate}: `, err.message)
             })
-    } 
+    }
     ));
 
     yearScrape.push(...prices)
@@ -222,4 +262,49 @@ app.get('/api', async (req, res) => {
     console.log(`*AC DONE with ${errors.length} errors`)
 })
 
+function sort_object(obj) {
+    items = Object.keys(obj).map(function(key) {
+        return [key, obj[key]];
+    });
+    items.sort(function (a, b) {
+        return filterSymbols.indexOf(a) - filterSymbols.indexOf(b);
+    });
+    sorted_obj={}
+
+
+
+    $.each(items, function(k, v) {
+        use_key = v[0]
+        use_value = v[1]
+        sorted_obj[use_key] = use_value
+    })
+    return(sorted_obj)
+}
+
+function latest() {
+
+fetch("https://api.coinmarketcap.com/data-api/v3/cryptocurrency/listing?start=1&limit=100&sortBy=rank&sortType=desc&convert=USD,BTC,ETH&cryptoType=all&tagType=all&audited=false&aux=ath,atl,high24h,low24h,num_market_pairs,cmc_rank,date_added,max_supply,circulating_supply,total_supply,volume_7d,volume_30d,self_reported_circulating_supply,self_reported_market_cap", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "fvideo-id": "321ac11c3ac098a58b44fdef8199982a04ecf7e6",
+    "sec-ch-ua": "\" Not;A Brand\";v=\"99\", \"Google Chrome\";v=\"97\", \"Chromium\";v=\"97\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-site",
+    "x-request-id": "76ce4555-9a1f-4f01-8e28-f02020a26e70"
+  },
+  "referrer": "https://coinmarketcap.com/",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "omit"
+});
+
+
+}
+ 
 app.listen(PORT, () => console.log(`server running on PORT ${PORT}`))
